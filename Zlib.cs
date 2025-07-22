@@ -1,5 +1,4 @@
 using ComponentAce.Compression.Libs.zlib;
-using System.Text;
 
 namespace Paulov.Tarkov.MP2;
 public enum ZlibCompression
@@ -16,6 +15,6 @@ public static class Zlib
 {
     public static byte[] Compress(byte[] data, ZlibCompression level = ZlibCompression.Normal)
     {
-        return SimpleZlib.CompressToBytes(Encoding.UTF8.GetString(data), compressLevel: (int)level, Encoding.UTF8);
+        return SimpleZlib.CompressToBytes(bytes: data, length: data.Length, compressLevel: (int)level);
     }
 }

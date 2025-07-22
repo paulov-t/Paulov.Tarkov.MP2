@@ -1,12 +1,12 @@
 using Comfort.Common;
-using ComponentAce.Compression.Libs.zlib;
+using CustomPlayerLoopSystem;
 using EFT;
 using EFT.UI;
 using HarmonyLib;
 using Paulov.Bepinex.Framework.Patches;
+using Paulov.Tarkov.MP2.Packets;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -85,6 +85,9 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
     {
         Plugin.Logger.LogDebug($"{nameof(CreateNetworkGamePatch)}.{nameof(PostfixOverrideMethod)} called");
 
+
+        Plugin.Logger.LogDebug($"{nameof(CreateNetworkGamePatch)}.{nameof(gameWorld)}.{gameWorld}");
+
         // Create the NetworkGame and connections here
         var gameObject = new GameObject("NetworkGame");
         gameObject.AddComponent<GameServer>();
@@ -118,7 +121,6 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
             });
         Singleton<AbstractGame>.Create(game);
 
-
         var myProfile = __instance.GetClientBackEndSession().Profile;
         gameClient.LoadProfiles.Add(myProfile);
 
@@ -134,55 +136,108 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
             Plugin.Logger.LogDebug($"{myProfile.Info.Nickname}::Load Complete.");
         });
 
-        //
-        BinaryWriter writer = new BinaryWriter(new MemoryStream());
-        writer.Write(0);
-        writer.Write(new Vector3());
-        // OnDeserializeInitialState
-        writer.Write(false); // isAlive
-        writer.Write(new Vector3());
-        writer.Write(new Quaternion());
-        writer.Write(false);
-        writer.Write(1f);
-        writer.Write((byte)Player.EVoipState.Available); // voipState
-        writer.Write(false); // isInBufferZone
-        writer.Write(0); // bufferZoneUsageTimeLeft
-                         // MalfRandoms.Deserialize
-        writer.Write(5336); // _seed
-        writer.Write(53362); // _nextSeed
-        writer.Write(false); // leftStance
-                             // ClientPlayer.method_177
-        BSGSerializer writerSerializer = new BSGSerializer();
-        writerSerializer.WriteEFTProfileDescriptor(new CompleteProfileDescriptorClass(__instance.GetClientBackEndSession().Profile, GClass2069.Instance));
-        var compressedData = SimpleZlib.CompressToBytes(bytes: writerSerializer.ToArray(), length: writerSerializer.ToArray().Length, compressLevel: (int)ZlibCompression.Normal);
-        writer.Write(compressedData.Length); // length of the serialized profile descriptor
-        writer.Write(compressedData); // serialized profile descriptor
-        writer.WriteMongoId(MongoID.Generate(true)); // firstId
-        writer.Write((ushort)1337u); // firstOperationId
-        writer.Write(true); // unk
-        writer.Write(0); // ScavExfilMask
-        writer.Write(0u); // HealthState
-        writer.Write(0); // AnimationVariant
-        writer.Write((byte)EHandsControllerType.Knife); // eHandsControllerType
-        writer.Write(false); // hasItemId
-        writer.Write((byte)0); // secret exfils
-
-        var arraySegment = new ArraySegment<byte>((writer.BaseStream as MemoryStream).ToArray());
-
-        File.WriteAllBytes("create_network_game_patch.bin", arraySegment.Array);
-
-        //
-        // Calls PlayerSpawn
-        // -> Requires Id (int) and Initial Location (SpawnPoint Vector3)
-        // then Calls ClientPlayer.OnDeserializeInitialState
-        // 
-        Plugin.Logger.LogDebug($"--> PlayerSpawn");
-        ((Interface10)game).PlayerSpawn(new BSGNetworkReader(arraySegment), (x) =>
+        var networkGameSession = PaulovNetworkGameSession.Create(game, myProfile.Id, myProfile.Id, null, () =>
         {
-            game.GameStarting(5);
+            Plugin.Logger.LogDebug($"PaulovNetworkGameSession created for {myProfile.Info.Nickname}");
         });
 
 
+        Plugin.Logger.LogDebug($"--> Run");
+        await networkGameSession.OnAcceptGamePacket(new OnAcceptResponseSettingsPacket(), game);
+
+        var tasks = new List<Task>();
+        // This requires game.Run to be called first, which is done above.
+        var worldSpawnNetworkMessage = new WorldSpawnPacket().ToNetworkMessage();
+        Plugin.Logger.LogDebug($"--> WorldSpawn");
+        var worldSpawnTask = ((Interface10)game).WorldSpawn(worldSpawnNetworkMessage);
+
+        Plugin.Logger.LogDebug($"--> WorldSpawnLoot");
+        ((Interface10)game).WorldSpawnLoot(new WorldSpawnLootPacket().ToNetworkMessage());
+
+        //await worldSpawnTask;
+
+        //Plugin.Logger.LogDebug("WorldSpawn completed successfully.");
+        await Task.Delay(5000); // Wait for the world spawn to complete
+
+        // After the world spawn, we can send the player spawn packet.
+        var playerSpawnPacket = new PlayerSpawnPacket().ToArraySegment(myProfile);
+        Plugin.Logger.LogDebug($"--> PlayerSpawn");
+        ((Interface10)game).PlayerSpawn(new BSGNetworkReader(playerSpawnPacket), (x) =>
+        {
+            game.GameStarting(5);
+            game.GameStarted(5, 5);
+        });
+
+        // After the world spawn, we can send the player spawn packet.
+        //var playerSpawnPacket = new PlayerSpawnPacket().ToArraySegment(myProfile);
+        //Plugin.Logger.LogDebug($"--> PlayerSpawn");
+        //((Interface10)game).PlayerSpawn(new BSGNetworkReader(playerSpawnPacket), (x) =>
+        //{
+        //    game.GameStarting(5);
+        //});
+
+
+    }
+
+    internal class PaulovNetworkGameSession : EFT.NetworkGameSession
+    {
+        public static PaulovNetworkGameSession Create(Interface10 game, string profileId, string token, AbstractLogger logger, Action onConnected = null)
+        {
+            UNetUpdate.OnUpdate += BSGNetworkManager.Default.Update;
+            string text = "Play session(" + profileId + ")";
+            PaulovNetworkGameSession networkGameSession = AbstractGameSession.Create<PaulovNetworkGameSession>(game.Transform, text, profileId, token);
+            //BSGNetworkManager.Default.AddMessageListener(81, networkGameSession.method_3);
+            //BSGNetworkManager.Default.AddMessageListener(82, networkGameSession.method_4);
+            //BSGNetworkManager.Default.AddMessageListener(83, networkGameSession.method_9);
+            //BSGNetworkManager.Default.AddMessageListener(84, networkGameSession.method_5);
+            //BSGNetworkManager.Default.AddMessageListener(91, networkGameSession.method_8);
+            //networkGameSession.method_18();
+            //networkGameSession.gclass859_0.AddDisposable(GlobalEventHandlerClass.Instance.SubscribeOnEvent<GInvokedEvent>(networkGameSession.method_16));
+            //networkGameSession.gclass859_0.AddDisposable(GlobalEventHandlerClass.Instance.SubscribeOnEvent<InvokedEvent>(networkGameSession.method_17));
+            //networkGameSession.gclass859_0.AddDisposable(GlobalEventHandlerClass.Instance.SubscribeOnEvent<GClass3418>(networkGameSession.method_15));
+            //networkGameSession.class1551_0 = Class1551.smethod_0(networkGameSession);
+            //networkGameSession.interface10_0 = game;
+            //networkGameSession.action_1 = onConnected;
+            //networkGameSession.class400_0 = new Class400(LoggerMode.Add);
+            //networkGameSession.ObserveOnly = false;
+            //networkGameSession.gclass703_0 = logger;
+            return networkGameSession;
+        }
+
+        public async Task OnAcceptGamePacket(OnAcceptResponseSettingsPacket packet, Interface10 game)
+        {
+            string text = "";// SimpleZlib.Decompress(response.byte_0);
+            ResourceKey[] lootArray = Array.Empty<ResourceKey>();// GClass843.ParseJsonTo<ResourceKey[]>(text, Array.Empty<JsonConverter>());
+            string text2 = "";// SimpleZlib.Decompress(response.byte_1);
+            string[] customizationArray = Array.Empty<string>();// GClass843.ParseJsonTo<string[]>(text2, Array.Empty<JsonConverter>());
+            Plugin.Logger.LogInfo(string.Format("{0}::Resources ({1}):\n{2}", "OnAcceptResponse", lootArray.Length, text));
+            Plugin.Logger.LogInfo(string.Format("{0}::Customization ids ({1}):\n{2}", "OnAcceptResponse", customizationArray.Length, text2));
+            WeatherClass[] weathers = new WeatherClass[1] { new WeatherClass() };// GClass843.ParseJsonTo<WeatherClass[]>(SimpleZlib.Decompress(response.byte_2), Array.Empty<JsonConverter>());
+            float fixedDeltaTime = 1;
+            Dictionary<string, int> interactables = new Dictionary<string, int>();// GClass843.ParseJsonTo<Dictionary<string, int>>(SimpleZlib.Decompress(response.byte_3), Array.Empty<JsonConverter>());
+            //GClass1636.SetupPositionQuantizer(response.bounds_0);
+            //base.NetworkCryptography = new GClass2934(response.bool_0, response.bool_1);
+            await game.Run(
+                session: this
+                , canRestart: false
+                , new GameDateTime(DateTime.Now, DateTime.Now, 7, false)
+                , interactables
+                , prefabs: lootArray
+                , customizations: customizationArray
+                , weathers: weathers
+                , season: ESeason.Summer // response.eseason_0
+                , new SeasonsSettings1() // response.gclass2477_0
+                , fixedDeltaTime
+                , speedLimitsEnabled: true // response.bool_3
+                , new GClass2005.Config() { DefaultPlayerStateLimits = new GClass2005.PlayerStateLimits() } // response.config_0
+                , GClass2104.Default // response.gclass2104_0
+                );
+        }
+
+        public new void Update()
+        {
+
+        }
     }
 }
 

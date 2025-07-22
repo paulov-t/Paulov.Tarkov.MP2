@@ -3,6 +3,7 @@ using BepInEx.Logging;
 using Comfort.Common;
 using EFT;
 using Paulov.Bepinex.Framework;
+using Paulov.Tarkov.Matchmaking;
 
 namespace Paulov.Tarkov.MP2;
 
@@ -34,6 +35,8 @@ public class Plugin : BaseUnityPlugin
     private void Awake()
     {
         Logger = base.Logger;
+
+        LocalGameMethodLog.PatchAllMethods();
 
         HarmonyPatchManager hpm = new("Paulov's MP2 Harmony Manager", new PaulovTarkovMP2Provider());
         hpm.EnableAll();

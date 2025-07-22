@@ -2,7 +2,14 @@
 <h3 align="center">Paulov's Tarkov P2P Multiplayer 2.0 Module</h3>
 
   <p align="center">
-	TODO: Write what this does and how it works.
+	Inspired by Stop Killing Games and my old Multiplayer Module "Stay in Tarkov", this project aims to rip up the old ideas of converting Singleplayer into Multiplayer and instead provide the exact same functionality as vanilla by using the BSG methods, rather than writing our own.
   </p>
 
 </div>
+
+## Table of Contents
+- [Getting Started](#getting-started)
+
+## Getting Started
+
+To get started with the Paulov's Tarkov P2P Multiplayer 2.0 Module, follow these steps:

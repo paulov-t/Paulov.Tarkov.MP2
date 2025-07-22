@@ -14,9 +14,6 @@ public class GameClient : MonoBehaviour, INetEventListener
 {
     public LiteNetLib.NetManager NetClient;
 
-    private float _newBallPosX;
-    private float _oldBallPosX;
-    private float _lerpTime;
     public HashSet<EFT.Profile> LoadProfiles = new HashSet<EFT.Profile>();
     public HashSet<string> LoadingProfiles = new HashSet<string>();
     public ConcurrentBag<string> LoadedProfiles = new ConcurrentBag<string>();
@@ -35,8 +32,6 @@ public class GameClient : MonoBehaviour, INetEventListener
         var peer = NetClient.FirstPeer;
         if (peer != null && peer.ConnectionState == ConnectionState.Connected)
         {
-            //Basic lerp
-            _lerpTime += Time.deltaTime / Time.fixedDeltaTime;
         }
         else
         {
@@ -80,7 +75,6 @@ public class GameClient : MonoBehaviour, INetEventListener
 
     void INetEventListener.OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channelNumber, DeliveryMethod deliveryMethod)
     {
-        _lerpTime = 0f;
     }
 
     void INetEventListener.OnNetworkReceiveUnconnected(IPEndPoint remoteEndPoint, NetPacketReader reader, UnconnectedMessageType messageType)
