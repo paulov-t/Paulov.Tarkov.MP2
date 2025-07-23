@@ -1,6 +1,7 @@
 using Comfort.Common;
 using CustomPlayerLoopSystem;
 using EFT;
+using EFT.Game.Spawning;
 using EFT.UI;
 using HarmonyLib;
 using Paulov.Bepinex.Framework.Patches;
@@ -88,11 +89,18 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
 
         Plugin.Logger.LogDebug($"{nameof(CreateNetworkGamePatch)}.{nameof(gameWorld)}.{gameWorld}");
 
+        // Keep the original method's functionality of Logging
+        __instance.Logger.LogDebug("TRACE-NetworkGameCreate 3");
+        __instance.Logger.LogDebug(string.Format("TRACE-NetworkGameCreate profileStatus: '{0}'", profileStatus.ToString()));
+
         // Create the NetworkGame and connections here
         var gameObject = new GameObject("NetworkGame");
         gameObject.AddComponent<GameServer>();
+        Plugin.Logger.LogDebug("Created and added GameServer");
+
         var gameClient = gameObject.AddComponent<GameClient>();
         gameClient.ConnectToIpAndPortAndStart(profileStatus.ip, profileStatus.port);
+        Plugin.Logger.LogDebug("Created and added GameClient");
 
         // Paulov: This is the first attempt to create a network game using BSG's code.
         LocationSettingsClass.Location location = ____raidSettings.SelectedLocation;
@@ -121,6 +129,8 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
             });
         Singleton<AbstractGame>.Create(game);
 
+        __instance.Logger.LogDebug("TRACE-NetworkGameCreate 4");
+
         var myProfile = __instance.GetClientBackEndSession().Profile;
         gameClient.LoadProfiles.Add(myProfile);
 
@@ -141,6 +151,11 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
             Plugin.Logger.LogDebug($"PaulovNetworkGameSession created for {myProfile.Info.Nickname}");
         });
 
+        metricsEvents.SetGameCreated();
+
+        __instance.Logger.LogDebug("TRACE-NetworkGameCreate 5", Array.Empty<object>());
+
+        MonoBehaviourSingleton<PreloaderUI>.Instance.SetSessionId(profileStatus.shortId);
 
         Plugin.Logger.LogDebug($"--> Run");
         await networkGameSession.OnAcceptGamePacket(new OnAcceptResponseSettingsPacket(), game);
@@ -150,33 +165,38 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
         var worldSpawnNetworkMessage = new WorldSpawnPacket().ToNetworkMessage();
         Plugin.Logger.LogDebug($"--> WorldSpawn");
         var worldSpawnTask = ((Interface10)game).WorldSpawn(worldSpawnNetworkMessage);
+        await Task.Yield(); // Yield to allow the world spawn to process
 
         Plugin.Logger.LogDebug($"--> WorldSpawnLoot");
         ((Interface10)game).WorldSpawnLoot(new WorldSpawnLootPacket().ToNetworkMessage());
 
         //await worldSpawnTask;
 
-        //Plugin.Logger.LogDebug("WorldSpawn completed successfully.");
-        await Task.Delay(5000); // Wait for the world spawn to complete
+        Plugin.Logger.LogDebug($"--> Game Spawn");
+        ((Interface10)game).Spawn();
 
+        SpawnSystemClass2 spawnPoints = SpawnSystemClass2.CreateFromScene(GClass1507.LocalDateTimeFromUnixTime(location.UnixDateTime), location.SpawnPointParams);
+        int spawnSafeDistance = ((location.SpawnSafeDistanceMeters > 0) ? location.SpawnSafeDistanceMeters : 100);
+        SpawnSystemSettings settings = new SpawnSystemSettings(location.MinDistToFreePoint, location.MaxDistToFreePoint, location.MaxBotPerZone, spawnSafeDistance, location.NoGroupSpawn, location.OneTimeSpawn);
+        ISpawnSystem1 spawnSystem = SpawnSystemFactory.CreateSpawnSystem(settings, () => Time.time, gameWorld, new BotsController(), spawnPoints);
+        ISpawnPoint spawnPoint = spawnSystem.SelectSpawnPoint(ESpawnCategory.Player, myProfile.Info.Side, null, null, null, null, myProfile.Id);
         // After the world spawn, we can send the player spawn packet.
-        var playerSpawnPacket = new PlayerSpawnPacket().ToArraySegment(myProfile);
+        var playerSpawnPacket = new PlayerSpawnPacket(myProfile, spawnPoint.Position).ToArraySegment();
         Plugin.Logger.LogDebug($"--> PlayerSpawn");
-        ((Interface10)game).PlayerSpawn(new BSGNetworkReader(playerSpawnPacket), (x) =>
+        ((Interface10)game).PlayerSpawn(new BSGNetworkReader(playerSpawnPacket), async (x) =>
         {
-            game.GameStarting(5);
-            game.GameStarted(5, 5);
+
+
         });
 
-        // After the world spawn, we can send the player spawn packet.
-        //var playerSpawnPacket = new PlayerSpawnPacket().ToArraySegment(myProfile);
-        //Plugin.Logger.LogDebug($"--> PlayerSpawn");
-        //((Interface10)game).PlayerSpawn(new BSGNetworkReader(playerSpawnPacket), (x) =>
-        //{
-        //    game.GameStarting(5);
-        //});
+        Plugin.Logger.LogDebug($"--> GameSpawned");
+        await ((Interface10)game).GameSpawned();
 
-
+        Plugin.Logger.LogDebug($"--> GameStarting");
+        game.GameStarting(10);
+        await Task.Delay(10 * 1000);
+        Plugin.Logger.LogDebug($"--> GameStarted");
+        game.GameStarted(45 * 60, 45 * 60);
     }
 
     internal class PaulovNetworkGameSession : EFT.NetworkGameSession
@@ -186,11 +206,11 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
             UNetUpdate.OnUpdate += BSGNetworkManager.Default.Update;
             string text = "Play session(" + profileId + ")";
             PaulovNetworkGameSession networkGameSession = AbstractGameSession.Create<PaulovNetworkGameSession>(game.Transform, text, profileId, token);
-            //BSGNetworkManager.Default.AddMessageListener(81, networkGameSession.method_3);
-            //BSGNetworkManager.Default.AddMessageListener(82, networkGameSession.method_4);
-            //BSGNetworkManager.Default.AddMessageListener(83, networkGameSession.method_9);
-            //BSGNetworkManager.Default.AddMessageListener(84, networkGameSession.method_5);
-            //BSGNetworkManager.Default.AddMessageListener(91, networkGameSession.method_8);
+            BSGNetworkManager.Default.AddMessageListener(81, networkGameSession.method_3);
+            BSGNetworkManager.Default.AddMessageListener(82, networkGameSession.method_4);
+            BSGNetworkManager.Default.AddMessageListener(83, networkGameSession.method_9);
+            BSGNetworkManager.Default.AddMessageListener(84, networkGameSession.method_5);
+            BSGNetworkManager.Default.AddMessageListener(91, networkGameSession.method_8);
             //networkGameSession.method_18();
             //networkGameSession.gclass859_0.AddDisposable(GlobalEventHandlerClass.Instance.SubscribeOnEvent<GInvokedEvent>(networkGameSession.method_16));
             //networkGameSession.gclass859_0.AddDisposable(GlobalEventHandlerClass.Instance.SubscribeOnEvent<InvokedEvent>(networkGameSession.method_17));
@@ -201,6 +221,9 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
             //networkGameSession.class400_0 = new Class400(LoggerMode.Add);
             //networkGameSession.ObserveOnly = false;
             //networkGameSession.gclass703_0 = logger;
+            typeof(EFT.NetworkGameSession).GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
+                .FirstOrDefault(f => f.FieldType == typeof(Interface10))
+                .SetValue(networkGameSession, game);
             return networkGameSession;
         }
 
@@ -213,7 +236,7 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
             Plugin.Logger.LogInfo(string.Format("{0}::Resources ({1}):\n{2}", "OnAcceptResponse", lootArray.Length, text));
             Plugin.Logger.LogInfo(string.Format("{0}::Customization ids ({1}):\n{2}", "OnAcceptResponse", customizationArray.Length, text2));
             WeatherClass[] weathers = new WeatherClass[1] { new WeatherClass() };// GClass843.ParseJsonTo<WeatherClass[]>(SimpleZlib.Decompress(response.byte_2), Array.Empty<JsonConverter>());
-            float fixedDeltaTime = 1;
+            float fixedDeltaTime = 0.066f;
             Dictionary<string, int> interactables = new Dictionary<string, int>();// GClass843.ParseJsonTo<Dictionary<string, int>>(SimpleZlib.Decompress(response.byte_3), Array.Empty<JsonConverter>());
             //GClass1636.SetupPositionQuantizer(response.bounds_0);
             //base.NetworkCryptography = new GClass2934(response.bool_0, response.bool_1);
@@ -226,7 +249,7 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
                 , customizations: customizationArray
                 , weathers: weathers
                 , season: ESeason.Summer // response.eseason_0
-                , new SeasonsSettings1() // response.gclass2477_0
+                , new SeasonsSettings1() { SpringSnowFactor = Vector3.zero } // response.gclass2477_0
                 , fixedDeltaTime
                 , speedLimitsEnabled: true // response.bool_3
                 , new GClass2005.Config() { DefaultPlayerStateLimits = new GClass2005.PlayerStateLimits() } // response.config_0
