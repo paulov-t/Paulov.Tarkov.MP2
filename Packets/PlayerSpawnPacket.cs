@@ -10,25 +10,23 @@ namespace Paulov.Tarkov.MP2.Packets
     public sealed class PlayerSpawnPacket : IBSGPacketMethods
     {
 
-        private Profile Profile;
+        private Profile _profile;
+        private Vector3 _position;
 
-        public PlayerSpawnPacket()
+        public PlayerSpawnPacket(Profile profile, Vector3 position)
         {
+            _profile = profile ?? throw new ArgumentNullException(nameof(profile), "Profile cannot be null");
+            _position = position;
         }
 
-        public PlayerSpawnPacket(Profile profile)
-        {
-            Profile = profile ?? throw new ArgumentNullException(nameof(profile), "Profile cannot be null");
-        }
-
-        public ArraySegment<byte> ToArraySegment(Profile profile)
+        public ArraySegment<byte> ToArraySegment()
         {
             BinaryWriter writer = new BinaryWriter(new MemoryStream());
-            writer.Write(0);
-            writer.Write(new Vector3());
+            writer.Write(1);
+            writer.Write(_position);
             // OnDeserializeInitialState
-            writer.Write(false); // isAlive
-            writer.Write(new Vector3());
+            writer.Write(true); // isAlive
+            writer.Write(_position);
             writer.Write(new Quaternion());
             writer.Write(false);
             writer.Write(1f);
@@ -41,7 +39,7 @@ namespace Paulov.Tarkov.MP2.Packets
             writer.Write(false); // leftStance
             // ClientPlayer.method_177
             BSGSerializer writerSerializer = new BSGSerializer();
-            writerSerializer.WriteEFTProfileDescriptor(new CompleteProfileDescriptorClass(profile, GClass2069.Instance));
+            writerSerializer.WriteEFTProfileDescriptor(new CompleteProfileDescriptorClass(_profile, GClass2069.Instance));
             var compressedData = SimpleZlib.CompressToBytes(bytes: writerSerializer.ToArray(), length: writerSerializer.ToArray().Length, compressLevel: (int)ZlibCompression.Normal);
             writer.Write(compressedData.Length); // length of the serialized profile descriptor
             writer.Write(compressedData); // serialized profile descriptor
@@ -59,27 +57,13 @@ namespace Paulov.Tarkov.MP2.Packets
             return arraySegment;
         }
 
-        public ArraySegment<byte> ToArraySegment()
-        {
-            if (Profile == null)
-            {
-                throw new InvalidOperationException("Profile must be set before calling ToArraySegment.");
-            }
-            return ToArraySegment(Profile);
-        }
-
-        public byte[] ToBytes(Profile profile)
-        {
-            return ToArraySegment(profile).ToArray();
-        }
-
         public byte[] ToBytes()
         {
-            if (Profile == null)
+            if (_profile == null)
             {
                 throw new InvalidOperationException("Profile must be set before calling ToBytes.");
             }
-            return ToBytes(Profile);
+            return ToBytes();
         }
     }
 }
