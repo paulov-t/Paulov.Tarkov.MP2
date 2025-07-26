@@ -26,8 +26,7 @@ namespace Paulov.Tarkov.MP2.Packets
             BinaryWriter binaryWriter = new BinaryWriter(new MemoryStream());
             var bsgSerializer = new BSGSerializer();
             new AbstractGameSession.Class1009().Serialize(bsgSerializer);
-            binaryWriter.Write(bsgSerializer.ToArray().Length);
-            binaryWriter.Write(bsgSerializer.ToArray());
+            binaryWriter.WriteSizeAndBytes(bsgSerializer.ToArray());
             return (binaryWriter.BaseStream as MemoryStream).ToArray();
         }
 

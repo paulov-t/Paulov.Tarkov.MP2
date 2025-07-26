@@ -35,6 +35,9 @@ public class Plugin : BaseUnityPlugin
     private void Awake()
     {
         Logger = base.Logger;
+        Logger.LogDebug("Paulov's Tarkov MP2 Plugin Awake");
+
+
 
         LocalGameMethodLog.PatchAllMethods();
 
