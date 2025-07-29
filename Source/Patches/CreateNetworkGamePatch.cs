@@ -114,70 +114,13 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
             //gameClient.ConnectToIpAndPortAndStart(profileStatus.ip, profileStatus.port);
             //Plugin.Logger.LogDebug("Created and added GameClient");
 
-            BSGNetworkListenServer networkListenServer = new BSGNetworkListenServer();
             //var micn = new Dissonance.Integrations.MirrorIgnorance.MirrorIgnoranceCommsNetwork()
             //{
             //};
             //gameObject.AddComponent<MirrorIgnoranceCommsNetwork>();
             //DissonanceServer dissonanceServer = new DissonanceServer(micn);
 
-            Configuration1 serverConfiguration = new Configuration1
-            {
-                ConnectionLimit = 16,
-                WaitTimeout = 3000u,
-                DisconnectTimeout = 12000u,
-                PingInterval = 500u,
-                ConnectingTimeout = 10000u,
-                PacketSize = 10240,
-            };
-            networkListenServer.AddMessageListener((short)NetworkMessageType.Connect, (NetworkMessage message) =>
-            {
-                Logger.LogInfo($"Received message of type {(NetworkMessageType)message.MessageType} on server listen");
-            });
-            networkListenServer.AddMessageListener((short)NetworkMessageType.Disconnect, (NetworkMessage message) =>
-            {
-                Logger.LogInfo($"Received message of type {(NetworkMessageType)message.MessageType} on server listen");
-            });
-            networkListenServer.AddMessageListener((short)NetworkMessageType.MsgTypeAccept, (NetworkMessage message) =>
-            {
-                Logger.LogInfo($"Received message of type {(NetworkMessageType)message.MessageType} on server listen");
-            });
-            networkListenServer.AddMessageListener((short)NetworkMessageType.MsgTypeCmdGameStarted, (NetworkMessage message) =>
-            {
-                Logger.LogInfo($"Received message of type {(NetworkMessageType)message.MessageType} on server listen");
-            });
-            networkListenServer.AddMessageListener((short)NetworkMessageType.MsgTypePlayerSynchronization, (NetworkMessage message) =>
-            {
-                Logger.LogInfo($"Received message of type {(NetworkMessageType)message.MessageType} on server listen");
-            });
-            networkListenServer.AddMessageListener((short)NetworkMessageType.MsgTypeFastPlayerSynchronization, (NetworkMessage message) =>
-            {
-                Logger.LogInfo($"Received message of type {(NetworkMessageType)message.MessageType} on server listen");
-            });
-
-            networkListenServer.Configure(serverConfiguration);
-            _ = Task.Run(async () =>
-            {
-                while (!networkListenServer.Active)
-                {
-                    Plugin.Logger.LogDebug("Waiting for NetworkListenServer to start...");
-                    Task.Delay(1000).Wait();
-                }
-                while (networkListenServer.Active)
-                {
-                    try
-                    {
-                        networkListenServer.Update();
-                    }
-                    catch (Exception ex)
-                    {
-                        Plugin.Logger.LogError($"Failed to start NetworkListenServer: {ex.Message}");
-                        Plugin.Logger.LogError(ex);
-                    }
-                    await Task.Delay(1); // Wait for a ms
-                }
-            });
-            networkListenServer.Listen(profileStatus.port + 1);
+            CreateListenServer(profileStatus);
 
             // Paulov: This is the first attempt to create a network game using BSG's code.
             LocationSettingsClass.Location location = locationSettings;// ____raidSettings.SelectedLocation;
@@ -252,7 +195,7 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
 
             var tasks = new List<Task>();
             // This requires game.Run to be called first, which is done above.
-            var worldSpawnNetworkMessage = new WorldSpawnPacket().ToNetworkMessage();
+            var worldSpawnNetworkMessage = new WorldSpawnPacket(location).ToNetworkMessage();
             Plugin.Logger.LogDebug($"--> WorldSpawn");
             var worldSpawnTask = ((Interface10)game).WorldSpawn(worldSpawnNetworkMessage);
             await Task.Yield(); // Yield to allow the world spawn to process
@@ -260,7 +203,7 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
 
 
             Plugin.Logger.LogDebug($"--> WorldSpawnLoot");
-            ((Interface10)game).WorldSpawnLoot(new WorldSpawnLootPacket().ToNetworkMessage());
+            ((Interface10)game).WorldSpawnLoot(new WorldSpawnLootPacket(location).ToNetworkMessage());
             matchmakerController.UpdateMatchingStatus("Spawned World Loot");
 
             //await worldSpawnTask;
@@ -269,11 +212,11 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
             ((Interface10)game).Spawn();
             matchmakerController.UpdateMatchingStatus("Spawned Game");
 
-            SpawnSystemClass2 spawnPoints = SpawnSystemClass2.CreateFromScene(GClass1507.LocalDateTimeFromUnixTime(location.UnixDateTime), location.SpawnPointParams);
+            var spawnPoints = SpawnSystemClass2.CreateFromScene(GClass1507.LocalDateTimeFromUnixTime(location.UnixDateTime), location.SpawnPointParams);
             int spawnSafeDistance = ((location.SpawnSafeDistanceMeters > 0) ? location.SpawnSafeDistanceMeters : 100);
-            SpawnSystemSettings settings = new SpawnSystemSettings(location.MinDistToFreePoint, location.MaxDistToFreePoint, location.MaxBotPerZone, spawnSafeDistance, location.NoGroupSpawn, location.OneTimeSpawn);
-            ISpawnSystem1 spawnSystem = SpawnSystemFactory.CreateSpawnSystem(settings, () => Time.time, gameWorld, new BotsController(), spawnPoints);
-            ISpawnPoint spawnPoint = spawnSystem.SelectSpawnPoint(ESpawnCategory.Player, myProfile.Info.Side, null, null, null, null, myProfile.Id);
+            var settings = new SpawnSystemSettings(location.MinDistToFreePoint, location.MaxDistToFreePoint, location.MaxBotPerZone, spawnSafeDistance, location.NoGroupSpawn, location.OneTimeSpawn);
+            var spawnSystem = SpawnSystemFactory.CreateSpawnSystem(settings, () => Time.time, gameWorld, new BotsController(), spawnPoints);
+            var spawnPoint = spawnSystem.SelectSpawnPoint(ESpawnCategory.Player, myProfile.Info.Side, null, null, null, null, myProfile.Id);
             // After the world spawn, we can send the player spawn packet.
             var playerSpawnPacket = new PlayerSpawnPacket(myProfile, spawnPoint.Position, spawnPoint.Rotation);
             var playerSpawnPacketArray = playerSpawnPacket.ToArraySegment();
@@ -317,6 +260,14 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
 
     }
 
+    private static void CreateListenServer(ProfileStatusClass profileStatus)
+    {
+        // TODO: This should only be created if the user is the Server.
+
+        PaulovNetworkListenServer networkListenServer = new PaulovNetworkListenServer(profileStatus.port + 1);
+
+    }
+
     private static async Task<LocationSettingsClass.Location> GetServerLocationSettings(ProfileStatusClass profileStatus, Profile savageProfile, RaidSettings ____raidSettings)
     {
         // TODO: We have not checked whether this is the Client or Server, so we assume it is the Server here.
@@ -340,12 +291,12 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
             , encoding: System.Text.Encoding.UTF8, "application/json"));
         response.EnsureSuccessStatusCode();
         var responseContent = await response.Content.ReadAsByteArrayAsync();
-        Plugin.Logger.LogDebug($"Response Content Length: {responseContent.Length}");
+        //Plugin.Logger.LogDebug($"Response Content Length: {responseContent.Length}");
         var responseText = SimpleZlib.Decompress(responseContent);
-        Plugin.Logger.LogDebug($"Response Content: {responseText}");
+        //Plugin.Logger.LogDebug($"Response Content: {responseText}");
         var responseObject = JObject.Parse(responseText);
         var data = responseObject["data"].ToString();
-        LocationSettingsClass.Location locationSettings = JsonConvert.DeserializeObject<LocationSettingsClass.Location>(data);
+        LocationSettingsClass.Location locationSettings = JsonConvert.DeserializeObject<LocationSettingsClass.Location>(data, new JsonSerializerSettings() { Converters = BSGJsonHelpers.GetJsonConvertersBSG() });
         return locationSettings;
     }
 }

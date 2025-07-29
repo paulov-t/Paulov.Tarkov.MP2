@@ -7,6 +7,13 @@ namespace Paulov.Tarkov.MP2.Packets
 {
     internal class WorldSpawnLootPacket : IBSGPacketMethods
     {
+        private LocationSettingsClass.Location _location;
+
+        public WorldSpawnLootPacket(LocationSettingsClass.Location location)
+        {
+            _location = location;
+        }
+
         public ArraySegment<byte> ToArraySegment()
         {
             return new ArraySegment<byte>(ToBytes());

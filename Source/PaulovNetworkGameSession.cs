@@ -1,4 +1,5 @@
-﻿using CustomPlayerLoopSystem;
+﻿using Comfort.Common;
+using CustomPlayerLoopSystem;
 using EFT;
 using EFT.Network.Transport;
 using Paulov.Tarkov.MP2.Packets;
@@ -43,11 +44,11 @@ namespace Paulov.Tarkov.MP2
             UNetUpdate.OnUpdate += BSGNetworkManager.Default.Update;
             string text = "Play session(" + profileId + ")";
             PaulovNetworkGameSession networkGameSession = AbstractGameSession.Create<PaulovNetworkGameSession>(game.Transform, text, profileId, token);
-            BSGNetworkManager.Default.AddMessageListener(81, networkGameSession.method_3);
-            BSGNetworkManager.Default.AddMessageListener(82, networkGameSession.method_4);
-            BSGNetworkManager.Default.AddMessageListener(83, networkGameSession.method_9);
-            BSGNetworkManager.Default.AddMessageListener(84, networkGameSession.method_5);
-            BSGNetworkManager.Default.AddMessageListener(91, networkGameSession.method_8);
+            //BSGNetworkManager.Default.AddMessageListener(81, networkGameSession.method_3);
+            //BSGNetworkManager.Default.AddMessageListener(82, networkGameSession.method_4);
+            //BSGNetworkManager.Default.AddMessageListener(83, networkGameSession.method_9);
+            //BSGNetworkManager.Default.AddMessageListener(84, networkGameSession.method_5);
+            //BSGNetworkManager.Default.AddMessageListener(91, networkGameSession.method_8);
             networkGameSession.method_18();
             //networkGameSession.gclass859_0.AddDisposable(GlobalEventHandlerClass.Instance.SubscribeOnEvent<GInvokedEvent>(networkGameSession.method_16));
             //networkGameSession.gclass859_0.AddDisposable(GlobalEventHandlerClass.Instance.SubscribeOnEvent<InvokedEvent>(networkGameSession.method_17));
@@ -72,6 +73,9 @@ namespace Paulov.Tarkov.MP2
         {
             Plugin.Logger.LogDebug($"{nameof(PaulovNetworkGameSession)}.{nameof(OnAcceptGamePacket)} called");
 
+            var configSettingsClass = Singleton<BackendConfigSettingsClass>.Instance;
+
+
             string text = "";// SimpleZlib.Decompress(response.byte_0);
             ResourceKey[] lootArray = Array.Empty<ResourceKey>();// GClass843.ParseJsonTo<ResourceKey[]>(text, Array.Empty<JsonConverter>());
             string text2 = "";// SimpleZlib.Decompress(response.byte_1);
@@ -81,8 +85,11 @@ namespace Paulov.Tarkov.MP2
             WeatherClass[] weathers = new WeatherClass[1] { new WeatherClass() };// GClass843.ParseJsonTo<WeatherClass[]>(SimpleZlib.Decompress(response.byte_2), Array.Empty<JsonConverter>());
             float fixedDeltaTime = 100.0f;
             Dictionary<string, int> interactables = new Dictionary<string, int>();// GClass843.ParseJsonTo<Dictionary<string, int>>(SimpleZlib.Decompress(response.byte_3), Array.Empty<JsonConverter>());
-            //GClass1636.SetupPositionQuantizer(response.bounds_0);
+            GClass1636.SetupPositionQuantizer(new Bounds(Vector3.zero, Vector3.positiveInfinity));
             //base.NetworkCryptography = new GClass2934(response.bool_0, response.bool_1);
+
+            var psl = new GClass2005.PlayerStateLimits() { MinSpeed = 0, MaxSpeed = 100.0f };
+
             await game.Run(
                 session: this
                 , canRestart: false
@@ -92,11 +99,11 @@ namespace Paulov.Tarkov.MP2
                 , customizations: customizationArray
                 , weathers: weathers
                 , season: ESeason.Summer // response.eseason_0
-                , new SeasonsSettings1() { SpringSnowFactor = Vector3.zero } // response.gclass2477_0
+                , new SeasonsSettings() { SpringSnowFactor = Vector3.zero } // response.gclass2477_0
                 , fixedDeltaTime
-                , speedLimitsEnabled: true // response.bool_3
-                , new GClass2005.Config() { DefaultPlayerStateLimits = new GClass2005.PlayerStateLimits() } // response.config_0
-                , GClass2104.Default // response.gclass2104_0
+                , speedLimitsEnabled: false // response.bool_3
+                , new GClass2005.Config() { PlayerStateLimits = new Dictionary<EPlayerState, GClass2005.PlayerStateLimits>() { { EPlayerState.ProneMove, psl } }, DefaultPlayerStateLimits = psl } // response.config_0
+                , new() { VoipEnabled = true, MicrophoneChecked = true, PushToTalkSettings = new() { SpeakingSecondsLimit = 10, SpeakingSecondsInterval = 1, AbuseTraceSeconds = 60, ActivationsLimit = 0, BlockingTime = 0, HearingDistance = 100, AlertDistanceMeters = 100, ActivationsInterval = 1 }, VoipQualitySettings = new() { AudioQuality = Dissonance.AudioQuality.High, ForwardErrorCorrection = false, FrameSize = Dissonance.FrameSize.Large, NoiseSuppression = Dissonance.Audio.Capture.NoiseSuppressionLevels.Disabled, SensitivityLevels = Dissonance.Audio.Capture.VadSensitivityLevels.HighSensitivity } } // response.gclass2104_0
                 );
         }
 

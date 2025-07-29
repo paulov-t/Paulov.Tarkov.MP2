@@ -1,8 +1,10 @@
 ﻿using ComponentAce.Compression.Libs.zlib;
 using EFT;
+using EFT.InventoryLogic;
 using Paulov.Tarkov.MP2.Packets.Interfaces;
 using System;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 
 namespace Paulov.Tarkov.MP2.Packets
@@ -69,16 +71,23 @@ namespace Paulov.Tarkov.MP2.Packets
             //writer.Write(healthData); // HealthState Data
             //writer.Write((uint)0);
 
-            writer.Write((int)1); // AnimationVariant
-            writer.Write((byte)EHandsControllerType.Empty); // eHandsControllerType
-            writer.Write(false); // hasItemId
+            writer.Write((int)0); // AnimationVariant
+            writer.Write((byte)EHandsControllerType.Knife); // eHandsControllerType
+            writer.Write(true); // hasItemId. This is needed if using anything but "Empty" Hands Controller
+            var itemId = _profile.Inventory.GetItemsInSlots(new[] { EquipmentSlot.Scabbard }).FirstOrDefault()?.Id ?? "Empty";
+            Plugin.Logger.LogDebug($"ItemId: {itemId}");
+            writer.WriteBSGString(itemId); // ItemId
             writer.Write((byte)0); // secret exfils
             return (writer.BaseStream as MemoryStream).ToArray();
         }
 
         public void AssertData()
         {
-            var reader = new BSGNetworkReader(ToBytes());
+            AssertData(new BSGNetworkReader(ToBytes()));
+        }
+
+        public static void AssertData(BSGNetworkReader reader)
+        {
             // PlayerSpawn
             Plugin.Logger.LogDebug($"Read Int at Position: {reader.Position}");
             int id = BSGNetworkReaderExtensions.ReadInt(reader);
@@ -174,7 +183,7 @@ namespace Paulov.Tarkov.MP2.Packets
                     Plugin.Logger.LogError("No hands controllers");
                 }
                 byte b = reader.ReadByte();
-                ExfiltrationControllerClass1 instance = ExfiltrationControllerClass1.Instance;
+                ExfiltrationControllerClass instance = ExfiltrationControllerClass.Instance;
                 for (int i = 0; i < b; i++)
                 {
                     string pointName = BSGNetworkReaderExtensions.ReadString(reader);
@@ -189,8 +198,8 @@ namespace Paulov.Tarkov.MP2.Packets
         {
             BinaryWriter healthWriter = new BinaryWriter(new MemoryStream());
             healthWriter.Write(_profile.Health.Energy.Current); // Energy current
-            healthWriter.Write(99f); // Energy max
-            healthWriter.Write(0f); // Energy min
+            healthWriter.Write(_profile.Health.Energy.Maximum); // Energy max
+            healthWriter.Write(_profile.Health.Energy.Minimum); // Energy min
 
             healthWriter.Write(_profile.Health.Hydration.Current); // Energy current
             healthWriter.Write(99f); // Energy max
@@ -204,18 +213,21 @@ namespace Paulov.Tarkov.MP2.Packets
             healthWriter.Write(99f); // Energy max
             healthWriter.Write(0f); // Energy min
 
-            healthWriter.Write(1f); // 
-            healthWriter.Write(1f); // 
+            healthWriter.Write(0f); // 
+            healthWriter.Write(0f); // 
 
-            healthWriter.Write(1f); // Damage Multiplier
-            healthWriter.Write(1f); // Energy Rate
-            healthWriter.Write(1f); // Hydration Rate
-            healthWriter.Write(1f); // Temperature Rate
-            healthWriter.Write(1f); // Damage Rate
-            healthWriter.Write(1f); // Stamina Rate
+            healthWriter.Write(0f); // Damage Multiplier
+            healthWriter.Write(0f); // Energy Rate
+            healthWriter.Write(0f); // Hydration Rate
+            healthWriter.Write(0f); // Temperature Rate
+            healthWriter.Write(0f); // Damage Rate
+            healthWriter.Write(0f); // Stamina Rate
 
             foreach (var bodyPart in _profile.Health.BodyParts)
             {
+                if (bodyPart.Key == EBodyPart.Common)
+                    continue;
+
                 healthWriter.Write(false); // Body part IsDestroyed
                 healthWriter.Write(bodyPart.Value.Health.Current); // Body part current health
                 healthWriter.Write(bodyPart.Value.Health.Maximum); // Body part max health

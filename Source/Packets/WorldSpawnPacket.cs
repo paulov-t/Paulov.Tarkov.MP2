@@ -1,4 +1,5 @@
 ﻿using EFT;
+using EFT.Interactive;
 using System;
 using System.IO;
 
@@ -10,11 +11,34 @@ namespace Paulov.Tarkov.MP2.Packets
     /// </summary>
     internal sealed class WorldSpawnPacket
     {
+        LocationSettingsClass.Location _location;
+
+        public WorldSpawnPacket(LocationSettingsClass.Location location)
+        {
+            _location = location;
+        }
+
         public ArraySegment<byte> ToArraySegment()
         {
             BinaryWriter writer = new BinaryWriter(new MemoryStream());
             // ExfiltrationControllerClass.ReadStates
-            writer.Write(0); // Number of exfiltration points - TODO: Implement exfiltration points logic 
+            if (_location.exits == null || _location.exits.Length == 0)
+            {
+                writer.Write((short)0); // Number of exfiltration points - TODO: Implement exfiltration points logic 
+                Plugin.Logger.LogError("WorldSpawnPacket: No exfiltration points found for location " + _location.Id + ". This may cause issues in the game.");
+            }
+            else
+            {
+                writer.Write((short)_location.exits.Length); // Number of exfiltration points - TODO: Implement exfiltration points logic 
+                for (var iExit = 0; iExit < _location.exits.Length; iExit++)
+                {
+                    writer.Write(_location.exits[iExit].Id); // name
+                    writer.Write((byte)EExfiltrationStatus.RegularMode); // eExfiltrationStatus 
+                    writer.Write((int)0); // startTime 
+                    writer.Write((short)0); // transfer item list count 
+                }
+            }
+
             // BufferZoneControllerClass.ReadStates
             writer.Write(false); // BufferZone availability - TODO: Implement buffer zones logic
             // EFT.ClientWorld.method_18 
@@ -35,8 +59,7 @@ namespace Paulov.Tarkov.MP2.Packets
             BinaryWriter syncWriter = new BinaryWriter(new MemoryStream());
             syncWriter.Write(0);
             var syncWriterBytes = (syncWriter.BaseStream as MemoryStream).ToArray();
-            writer.Write(syncWriterBytes.Length); // Length of the sync data
-            writer.Write(syncWriterBytes); // Sync data
+            writer.WriteSizeAndBytes(syncWriterBytes);
 
             /// This packet must be Compressed using SimpleZlib
             var compressedData = Zlib.Compress((writer.BaseStream as MemoryStream).ToArray(), ZlibCompression.Normal);
