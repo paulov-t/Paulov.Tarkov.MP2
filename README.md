@@ -8,7 +8,14 @@
 </div>
 
 ## Table of Contents
+- [Prerequisites](#prerequisites)
 - [Getting Started](#getting-started)
+
+## Prerequisites
+
+You require:
+- A server that supports official matching and multiplayer methods like [Paulov.Tarkov.DotNetApi](https://github.com/paulov-t/Paulov.Tarkov.DotNetApi)
+- The [Paulov.Tarkov.Matchmaking](https://github.com/paulov-t/Paulov.Tarkov.Matchmaking) BepInEx Plugin
 
 ## Getting Started
 
