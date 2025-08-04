@@ -8,8 +8,13 @@
 </div>
 
 ## Table of Contents
+- [Status](#status)
 - [Prerequisites](#prerequisites)
 - [Getting Started](#getting-started)
+
+## Status
+
+Together with the Matchmaking plugin, you can spawn into a game world and move around but nothing else happens.
 
 ## Prerequisites
 
