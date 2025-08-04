@@ -25,3 +25,5 @@ You require:
 ## Getting Started
 
 To get started with the Paulov's Tarkov P2P Multiplayer 2.0 Module, follow these steps:
+
+TODO: WRITE INSTRUCTIONS AFTER IT ALL WORKS
