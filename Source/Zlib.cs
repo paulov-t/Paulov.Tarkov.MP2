@@ -19,7 +19,7 @@ public static class Zlib
         return Encoding.UTF8.GetString(Compress(Encoding.UTF8.GetBytes(data), level: ZlibCompression.Normal));
     }
 
-    public static byte[] Compress(byte[] data, ZlibCompression level = ZlibCompression.Normal)
+    public static byte[] Compress(byte[] data, ZlibCompression level = ZlibCompression.Maximum)
     {
         return SimpleZlib.CompressToBytes(bytes: data, length: data.Length, compressLevel: (int)level);
     }
