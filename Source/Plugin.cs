@@ -8,7 +8,8 @@ using Paulov.Tarkov.Matchmaking;
 namespace Paulov.Tarkov.MP2;
 
 [BepInDependency("Paulov.Bepinex.Framework", BepInDependency.DependencyFlags.HardDependency)]
-[BepInPlugin("Paulov.Tarkov.MP2", "Paulov.Tarkov.MP2", "2025.7.19")]
+[BepInDependency("Paulov.Tarkov.Matchmaking", BepInDependency.DependencyFlags.HardDependency)]
+[BepInPlugin("Paulov.Tarkov.MP2", "Paulov.Tarkov.MP2", "2025.7.29")]
 public class Plugin : BaseUnityPlugin
 {
     internal static new ManualLogSource Logger;
