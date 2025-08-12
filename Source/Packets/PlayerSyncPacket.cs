@@ -1,6 +1,7 @@
 ﻿using Paulov.Tarkov.MP2.Packets.Interfaces;
 using System;
 using System.IO;
+using System.Linq;
 
 namespace Paulov.Tarkov.MP2.Packets
 {
@@ -30,13 +31,32 @@ namespace Paulov.Tarkov.MP2.Packets
             writer.Write((int)1); // ServerFixedUpdate
             writer.Write((int)1); // ServerTime
 
-            writer.Write(1f); // selfPlayerInfo.ServerWorldTime
+            writer.Write(1000f); // selfPlayerInfo.ServerWorldTime
             writer.Write(false); // num / hasHitInfo
             writer.Write(false); // flag
             writer.Write(false); // flag2
             writer.Write(false); // flag3
             writer.Write(false); // flag4
-            writer.Write(false); // flag5
+            writer.Write(_client2ServerPacket.InventoryCommandPackets.Any()); // flag5
+
+
+            // flag5
+            if (_client2ServerPacket.InventoryCommandPackets.Any())
+            {
+                Plugin.Logger.LogDebug("PlayerSyncPacket: Writing InventoryCommandPackets");
+
+                writer.Write(_client2ServerPacket.InventoryCommandPackets.Count); // InventoryCommandPackets
+                foreach (var packet in _client2ServerPacket.InventoryCommandPackets)
+                {
+                    byte[] buffer = new byte[10000];
+                    var serializer = new GClass1361(buffer);
+                    packet.Serialize(serializer);
+                    var bytes = serializer.Buffer.Take(serializer.BytesWritten).ToArray();
+
+                    writer.Write(bytes.Length); // Size of the packet
+                    writer.Write(bytes); // Packet data
+                }
+            }
 
             writer.Write(true); // hasCommonPacket
             //new GClass2073();
@@ -46,12 +66,12 @@ namespace Paulov.Tarkov.MP2.Packets
             writer.Write(false); // ChangeMasteringLevelPacket
 
             writer.Write(false); // hasSyncHealthPacket
-            writer.Write(false); // hasSyncHealthPacket
-            writer.Write(false); // hasSyncHealthPacket
-            writer.Write(false); // hasSyncHealthPacket
-            writer.Write(false); // hasSyncHealthPacket
-            writer.Write(false); // hasSyncHealthPacket
-            writer.Write(false); // hasSyncHealthPacket
+            writer.Write(false); // hasAcceptHitDebugDataPacket
+            writer.Write(false); // hasQuestConditionValueChangedPacket
+            writer.Write(false); // hasAchievementConditionValueChangedPacket 
+            writer.Write(false); // hasPrestigeConditionValueChangedPacket
+            writer.Write(false); // hasShowStatNotificationPacket
+            writer.Write(false); // hasPlayerDiedPacket
             writer.Write(false); // hasClientConfirmCallbackPacket
             writer.Write(false); // hasWeaponOverheatPacket
             writer.Write(false); // hasChangeSkillExperiencePacket
