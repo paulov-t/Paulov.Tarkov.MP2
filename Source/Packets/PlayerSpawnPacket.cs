@@ -201,15 +201,15 @@ namespace Paulov.Tarkov.MP2.Packets
             healthWriter.Write(_profile.Health.Energy.Maximum); // Energy max
             healthWriter.Write(_profile.Health.Energy.Minimum); // Energy min
 
-            healthWriter.Write(_profile.Health.Hydration.Current); // Energy current
+            healthWriter.Write(_profile.Health.Hydration.Current); // Hydration current
+            healthWriter.Write(_profile.Health.Hydration.Maximum); // Hydration max
+            healthWriter.Write(_profile.Health.Hydration.Minimum); // Hydration min
+
+            healthWriter.Write(_profile.Health.Temperature.Current); // Temperature current
             healthWriter.Write(99f); // Energy max
             healthWriter.Write(0f); // Energy min
 
-            healthWriter.Write(_profile.Health.Temperature.Current); // Energy current
-            healthWriter.Write(99f); // Energy max
-            healthWriter.Write(0f); // Energy min
-
-            healthWriter.Write(_profile.Health.Poison.Current); // Energy current
+            healthWriter.Write(_profile.Health.Poison.Current); // Poison current
             healthWriter.Write(99f); // Energy max
             healthWriter.Write(0f); // Energy min
 
@@ -217,20 +217,19 @@ namespace Paulov.Tarkov.MP2.Packets
             healthWriter.Write(0f); // 
 
             healthWriter.Write(0f); // Damage Multiplier
-            healthWriter.Write(0f); // Energy Rate
-            healthWriter.Write(0f); // Hydration Rate
+            healthWriter.Write(-1f); // Energy Rate
+            healthWriter.Write(-1f); // Hydration Rate
             healthWriter.Write(0f); // Temperature Rate
             healthWriter.Write(0f); // Damage Rate
             healthWriter.Write(0f); // Stamina Rate
 
-            foreach (var bodyPart in _profile.Health.BodyParts)
+            //foreach (var bodyPart in _profile.Health.BodyParts)
+            foreach (var eBodyPart in GClass2925.RealBodyParts)
             {
-                if (bodyPart.Key == EBodyPart.Common)
-                    continue;
-
-                healthWriter.Write(false); // Body part IsDestroyed
-                healthWriter.Write(bodyPart.Value.Health.Current); // Body part current health
-                healthWriter.Write(bodyPart.Value.Health.Maximum); // Body part max health
+                var bodyPart = _profile.Health.BodyParts[eBodyPart];
+                healthWriter.Write(bodyPart.Health.Current == bodyPart.Health.Minimum); // Body part IsDestroyed
+                healthWriter.Write(bodyPart.Health.Current); // Body part current health
+                healthWriter.Write(bodyPart.Health.Maximum); // Body part max health
             }
 
             healthWriter.Write((short)0); // Injury count
