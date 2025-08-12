@@ -3,6 +3,7 @@ using Comfort.Common;
 using ComponentAce.Compression.Libs.zlib;
 using EFT;
 using EFT.Game.Spawning;
+using EFT.Interactive;
 using EFT.UI;
 using HarmonyLib;
 using Newtonsoft.Json;
@@ -126,7 +127,7 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
             LocationSettingsClass.Location location = locationSettings;// ____raidSettings.SelectedLocation;
             TimeSpan sessionTime = TimeSpan.FromMinutes(location.EscapeTimeLimit);
             matchmakerController.UpdateMatchingStatus("Creating EftNetworkGame");
-            EftNetworkGame game = EftNetworkGame.Create(
+            var game = PaulovMPGameServer.Create(
                 Plugin.BackEndSession
                 , gameWorld
                 , profileStatus
@@ -134,7 +135,9 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
                 , savageProfile
                 , Plugin.BackEndSession.InsuranceCompany
                 , ____inputTree
-                , MonoBehaviourSingleton<GameUI>.Instance, metricsEvents, new GClass2503(metricsConfig, __instance)
+                , MonoBehaviourSingleton<GameUI>.Instance
+                , metricsEvents
+                , new GClass2503(metricsConfig, __instance)
                 , EUpdateQueue.Update
                 , sessionTime
                 , delegate
@@ -173,7 +176,6 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
 
             var networkGameSession = PaulovNetworkGameSession.Create(game, myProfile.Id, myProfile.Id, null);
 
-
             metricsEvents.SetGameCreated();
 
             Configuration1 clientConfiguration = new Configuration1
@@ -191,22 +193,36 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
             matchmakerController.UpdateMatchingStatus("Attempting to start the game.");
 
             Plugin.Logger.LogDebug($"--> Run");
-            await networkGameSession.OnAcceptGamePacket(new OnAcceptResponseSettingsPacket(), game);
+            await networkGameSession.OnAcceptGamePacket(new OnAcceptResponseSettingsPacket(), game, location);
 
             var tasks = new List<Task>();
             // This requires game.Run to be called first, which is done above.
             var worldSpawnNetworkMessage = new WorldSpawnPacket(location).ToNetworkMessage();
             Plugin.Logger.LogDebug($"--> WorldSpawn");
             var worldSpawnTask = ((Interface10)game).WorldSpawn(worldSpawnNetworkMessage);
+            await Task.Yield();
+            // TODO: This is a hack to allow the world to enable the extract system.
+            for (var iExit = 0; iExit < location.exits.Length; iExit++)
+            {
+                var name = location.exits[iExit].Name;
+                Logger.LogDebug($"Enabling Exfiltration Point: {name}");
+                ExfiltrationPoint[] source = ExfiltrationControllerClass.Instance.ExfiltrationPoints.Concat(ExfiltrationControllerClass.Instance.SecretExfiltrationPoints).ToArray();
+                ExfiltrationPoint exfiltrationPoint = source.FirstOrDefault((ExfiltrationPoint x) => x.Settings.Name == name);
+                if (exfiltrationPoint != null)
+                {
+                    exfiltrationPoint.Status = EExfiltrationStatus.RegularMode;
+                    Logger.LogDebug($"Enabled Exfiltration Point: {name}");
+
+                }
+            }
             await Task.Yield(); // Yield to allow the world spawn to process
             matchmakerController.UpdateMatchingStatus("Spawned World");
-
+            await Task.Delay(1000); // Display the message for a second
 
             Plugin.Logger.LogDebug($"--> WorldSpawnLoot");
             ((Interface10)game).WorldSpawnLoot(new WorldSpawnLootPacket(location).ToNetworkMessage());
             matchmakerController.UpdateMatchingStatus("Spawned World Loot");
-
-            //await worldSpawnTask;
+            await Task.Delay(1000); // Display the message for a second
 
             Plugin.Logger.LogDebug($"--> Game Spawn");
             ((Interface10)game).Spawn();
@@ -215,7 +231,7 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
             var spawnPoints = SpawnSystemClass2.CreateFromScene(GClass1507.LocalDateTimeFromUnixTime(location.UnixDateTime), location.SpawnPointParams);
             int spawnSafeDistance = ((location.SpawnSafeDistanceMeters > 0) ? location.SpawnSafeDistanceMeters : 100);
             var settings = new SpawnSystemSettings(location.MinDistToFreePoint, location.MaxDistToFreePoint, location.MaxBotPerZone, spawnSafeDistance, location.NoGroupSpawn, location.OneTimeSpawn);
-            var spawnSystem = SpawnSystemFactory.CreateSpawnSystem(settings, () => Time.time, gameWorld, new BotsController(), spawnPoints);
+            var spawnSystem = SpawnSystemFactory.CreateSpawnSystem(settings, () => Time.time, gameWorld, game.BotsController, spawnPoints);
             var spawnPoint = spawnSystem.SelectSpawnPoint(ESpawnCategory.Player, myProfile.Info.Side, null, null, null, null, myProfile.Id);
             // After the world spawn, we can send the player spawn packet.
             var playerSpawnPacket = new PlayerSpawnPacket(myProfile, spawnPoint.Position, spawnPoint.Rotation);
@@ -295,8 +311,10 @@ public sealed class CreateNetworkGamePatch : NullPaulovHarmonyPatch
         var responseText = SimpleZlib.Decompress(responseContent);
         //Plugin.Logger.LogDebug($"Response Content: {responseText}");
         var responseObject = JObject.Parse(responseText);
-        var data = responseObject["data"].ToString();
+        var data = responseObject["data"]["locationLoot"].ToString();
+
         LocationSettingsClass.Location locationSettings = JsonConvert.DeserializeObject<LocationSettingsClass.Location>(data, new JsonSerializerSettings() { Converters = BSGJsonHelpers.GetJsonConvertersBSG() });
+        Plugin.Logger.LogDebug($"{JsonConvert.SerializeObject(locationSettings, Formatting.Indented, settings: new JsonSerializerSettings() { Converters = BSGJsonHelpers.GetJsonConvertersBSG() })}");
         return locationSettings;
     }
 }
