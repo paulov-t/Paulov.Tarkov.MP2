@@ -1,13 +1,17 @@
 ﻿using EFT;
-using EFT.Interactive;
 using System;
 using System.IO;
+using System.Text;
 
 namespace Paulov.Tarkov.MP2.Packets
 {
     /// <summary>
     /// The WorldSpawnPacket class represents a packet that is sent when the world spawns in the game.
     /// This packet must be Compressed using SimpleZlib and sent to the client.
+    /// This packet is deserialized in ClientWorld.Deserialize method.
+    /// <remarks>
+    /// This packet is deserialized in ClientWorld.Deserialize method.
+    /// </remarks>
     /// </summary>
     internal sealed class WorldSpawnPacket
     {
@@ -20,6 +24,13 @@ namespace Paulov.Tarkov.MP2.Packets
 
         public ArraySegment<byte> ToArraySegment()
         {
+            return new ArraySegment<byte>(ToBytes());
+        }
+
+        UTF8Encoding utf8Encoding_0 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+        public byte[] ToBytes()
+        {
             BinaryWriter writer = new BinaryWriter(new MemoryStream());
             // ExfiltrationControllerClass.ReadStates
             if (_location.exits == null || _location.exits.Length == 0)
@@ -29,14 +40,15 @@ namespace Paulov.Tarkov.MP2.Packets
             }
             else
             {
-                writer.Write((short)_location.exits.Length); // Number of exfiltration points - TODO: Implement exfiltration points logic 
-                for (var iExit = 0; iExit < _location.exits.Length; iExit++)
-                {
-                    writer.Write(_location.exits[iExit].Id); // name
-                    writer.Write((byte)EExfiltrationStatus.RegularMode); // eExfiltrationStatus 
-                    writer.Write((int)0); // startTime 
-                    writer.Write((short)0); // transfer item list count 
-                }
+                writer.Write((short)0); // Number of exfiltration points - TODO: Implement exfiltration points logic 
+                //writer.Write((short)_location.exits.Length); // Number of exfiltration points - TODO: Implement exfiltration points logic 
+                //for (var iExit = 0; iExit < _location.exits.Length; iExit++)
+                //{
+                //    writer.Write(_location.exits[iExit].Id); // name
+                //    writer.Write((byte)EExfiltrationStatus.RegularMode); // eExfiltrationStatus 
+                //    writer.Write((int)0); // startTime 
+                //    writer.Write((short)0); // transfer item list count 
+                //}
             }
 
             // BufferZoneControllerClass.ReadStates
@@ -64,26 +76,48 @@ namespace Paulov.Tarkov.MP2.Packets
             /// This packet must be Compressed using SimpleZlib
             var compressedData = Zlib.Compress((writer.BaseStream as MemoryStream).ToArray(), ZlibCompression.Normal);
             BinaryWriter writerZlib = new BinaryWriter(new MemoryStream());
-            writerZlib.Write(compressedData.Length);
-            writerZlib.Write(compressedData);
+            writerZlib.WriteSizeAndBytes(compressedData);
+            //writerZlib.Write(compressedData.Length + 1);
+            //writerZlib.Write(compressedData);
             var resultingBytes = (writerZlib.BaseStream as MemoryStream).ToArray();
-            return new ArraySegment<byte>(resultingBytes);
-        }
-        public byte[] ToBytes()
-        {
-            return ToArraySegment().ToArray();
+            return resultingBytes;
         }
 
         public NetworkMessage ToNetworkMessage()
         {
+            var compressedData = ToBytes();
+            if (compressedData == null || compressedData.Length == 0)
+            {
+                throw new InvalidOperationException("Compressed data cannot be null or empty");
+            }
+            AssertData(compressedData);
+
             var message = new NetworkMessage
             {
                 MessageType = (short)NetworkMessageType.MsgWorldSpawn,
                 buffer = ToArraySegment(),
                 Channel = EFT.Network.NetworkChannel.Reliable,
-                Connection = new(1, 1, "", 17000)
+                Connection = new(1, 1, "127.0.0.1", 17000)
             };
             return message;
+        }
+
+        public void AssertData(byte[] data)
+        {
+            if (data == null || data.Length == 0)
+            {
+                throw new ArgumentNullException(nameof(data), "Data cannot be null or empty");
+            }
+            if (data.Length > ushort.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException(nameof(data), "Data length exceeds maximum allowed size");
+            }
+
+            //var reader = new BSGNetworkReader(data);
+            //var reader1 = new BSGNetworkReader(SimpleZlib.DecompressToBytes(BSGNetworkReaderExtensions.ReadBytesAndSize(reader)));
+
+            //ExfiltrationControllerClass.Instance.ReadStates(reader1);
+            //BufferZoneControllerClass.Instance.ReadStates(reader);
         }
     }
 }
